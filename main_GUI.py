@@ -1,5 +1,5 @@
 import customtkinter as ctk
-
+import sqlite3
 
 from backend import add_category
 
@@ -468,6 +468,7 @@ class WordApp(ctk.CTk):
 
         if not words_dictonary:
             self.words_status_lbl.configure(text="Not a single correct line found! ❌", text_color="#ff0000")
+            self.bulk_words_textbox.delete("2.0", "end")
             return
 
         success = add_words(selected_cat, words_dictonary)
@@ -561,8 +562,7 @@ class WordApp(ctk.CTk):
         self.main_content_frame.grid_columnconfigure(0, weight=1)
         
         
-        import sqlite3
-        from backend import DB_NAME, used_words_in_session
+        from backend import DB_NAME, used_words_in_session,pick_word
         
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
@@ -572,42 +572,17 @@ class WordApp(ctk.CTk):
         if "First, create a category!" in current_cat:
             current_cat = "food" 
 
-        # 1. Получаем ID категории
-        cursor.execute("SELECT id FROM categories WHERE name = ?", (current_cat,))
-        cat_row = cursor.fetchone()
-        
-        if cat_row is None:
-            
-            cursor.execute("INSERT INTO categories (name) VALUES(?)", (current_cat,))
-            conn.commit()
-            cursor.execute("SELECT id FROM categories WHERE name = ?", (current_cat,))
-            cat_row = cursor.fetchone()
-
-        category_id = cat_row[0] # Чистое число ID
         
         
-        if used_words_in_session:
-            placeholders = ', '.join('?' for _ in used_words_in_session)
-            query = f"""
-                SELECT id , word, translation FROM words 
-                WHERE category_id = ? AND word NOT IN ({placeholders}) 
-                ORDER BY RANDOM() LIMIT 1
-            """
-            cursor.execute(query, (category_id, *used_words_in_session))
-        else:
-            cursor.execute(
-                "SELECT id,word, translation FROM words WHERE category_id = ? ORDER BY RANDOM() LIMIT 1",
-                (category_id,)
-            )
-            
-        word_row = cursor.fetchone()
-        conn.close()
+        word_row = pick_word(current_cat)
+        
             
         if word_row:
             self.current_word_id = word_row[0]       # ТЕПЕРЬ ПРОГРАММА ЗНАЕТ ID СЛОВА!
             self.current_word = word_row[1]
             self.correct_translation = word_row[2]
-            self.current_category_id = category_id   # Запоминаем числовой ID категории для статистики
+            self.weight=word_row[3]
+            self.current_category_id = word_row[4] # Запоминаем числовой ID категории для статистики
         else:
             self.current_word_id, self.current_word, self.correct_translation, self.current_category_id = None, None, None, None
             
@@ -668,7 +643,7 @@ class WordApp(ctk.CTk):
 
 
     def check_training_answer(self):
-        from backend import check_answer, used_words_in_session
+        from backend import check_answer, used_words_in_session,redact_weight
         
         
         user_text = self.user_input.get()
@@ -679,8 +654,9 @@ class WordApp(ctk.CTk):
             self.correct_translation,
             self.current_word_id,       # Передаем ID слова
             self.current_category_id    # Передаем ID категории
+            
         )
-        
+        redact_weight(self.current_word_id,self.weight,is_correct)
         
         if is_correct:
            

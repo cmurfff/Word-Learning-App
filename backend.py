@@ -76,7 +76,7 @@ def prepare_session_table(category_name):
 ''', (category_id,))
     conn.commit()
     return conn
-
+ 
 
 def init_db(db_path=DB_NAME):
     
@@ -93,9 +93,12 @@ def init_db(db_path=DB_NAME):
             category_id INTEGER,
             word TEXT NOT NULL,
             translation TEXT NOT NULL,
+            weight INTEGER DEFAULT 1,
             FOREIGN KEY (category_id) REFERENCES categories(id)
+            
             )
         ''')
+    
 
 
     cursor.execute("""
@@ -157,8 +160,7 @@ def get_session_word(category_name):
     count_row = cursor.fetchone()
     total_words = count_row[0] if count_row else 0
     
-    print(f"\n📊 [TRAINING DEBUG] Category '{category_name}' (ID: {category_id}) contains total words: {total_words}")
-    print(f"🚫 [TRAINING DEBUG] Current blacklisted words in session: {len(used_words_in_session)}")
+    
 
     if used_words_in_session:
         placeholders = ', '.join('?' for _ in used_words_in_session)
@@ -425,10 +427,9 @@ def get_words_with_stats_by_category(category_id):
         rows = cursor.fetchall()
     finally:
         conn.close()
-    return rows # Вернет список кортежей: [("apple", "яблоко", 3, 5), ("banana", "банан", 0, 0)]
+    return rows 
 """
 def get_words_with_stats_by_category(category_name):
-    import sqlite3
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     
@@ -451,6 +452,76 @@ def get_words_with_stats_by_category(category_name):
     conn.close()
     return rows
 
+
+def redact_weight(word_id,weight,is_correct): # берет текущий вес,статус ответа,айди слова  для изменения веса 
+
+
+    #проверяет вес чтобы он не взлетел вв верх или не упал ниже 1
+    try:
+
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        if is_correct==False and weight <20:     
+                weight+=1
+                cursor.execute("UPDATE words SET weight = ? WHERE id = ?",(weight, word_id))
+
+
+        elif is_correct==True and weight >=3:   #если статус ответа правильный и вес больше 3 (объяснение почему выше)  уменьшает вес на 2
+            weight-=2
+            cursor.execute("UPDATE words SET weight = ? WHERE id=?",
+                (weight,word_id)
+            )
+
+
+        conn.commit()
+
+    finally:
+        
+        conn.close()
+def pick_word(current_cat):
+    conn=sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id FROM categories WHERE name = ?", (current_cat,))
+    cat_row = cursor.fetchone()
+                
+    if cat_row is None:
+                    
+        cursor.execute("INSERT INTO categories (name) VALUES(?)", (current_cat,))
+        conn.commit()
+        cursor.execute("SELECT id FROM categories WHERE name = ?", (current_cat,))
+        cat_row = cursor.fetchone()
+        
+    category_id = cat_row[0] # Чистое число ID
+                
+                
+    if used_words_in_session:
+        placeholders = ', '.join('?' for _ in used_words_in_session)
+        query = f"""
+            SELECT id , word, translation, weight FROM words 
+            WHERE category_id = ? AND word NOT IN ({placeholders}) 
+            
+        """
+        cursor.execute(query, (category_id, *used_words_in_session))
+    else:
+        cursor.execute(
+            "SELECT id,word, translation,weight FROM words WHERE category_id = ? ",
+        (category_id,))
+                    
+        
+       
+                    
+    words=cursor.fetchall()
+    if not words:
+        return None
+
+    weights=[w[3] for w in words]
+    chosen = random.choices(words, weights=weights, k=1)[0]
+
+    conn.close()
+    print(chosen[0], chosen[1], chosen[2], chosen[3], category_id)
+    return chosen[0], chosen[1], chosen[2], chosen[3], category_id
+
+    
 
 
 
