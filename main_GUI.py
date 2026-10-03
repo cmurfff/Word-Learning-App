@@ -552,6 +552,7 @@ class WordApp(ctk.CTk):
         
         from backend import reset_session
         reset_session()
+        self.temporary_word=0  #переменная дял удаления из использованых слов временые слова
         
         
         self.show_next_word()
@@ -562,10 +563,9 @@ class WordApp(ctk.CTk):
         self.main_content_frame.grid_columnconfigure(0, weight=1)
         
         
-        from backend import DB_NAME, used_words_in_session,pick_word
+        from backend import pick_word
         
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
+
 
         
         current_cat = self.selected_category.strip()
@@ -573,7 +573,7 @@ class WordApp(ctk.CTk):
             current_cat = "food" 
 
         
-        
+       
         word_row = pick_word(current_cat)
         
             
@@ -641,7 +641,7 @@ class WordApp(ctk.CTk):
 
 
 
-
+   
     def check_training_answer(self):
         from backend import check_answer, used_words_in_session,redact_weight
         
@@ -657,16 +657,30 @@ class WordApp(ctk.CTk):
             
         )
         redact_weight(self.current_word_id,self.weight,is_correct)
+        if self.temporary_word!=0 and len(used_words_in_session) >=1:
+            if self.temporary_word==1:
+                del used_words_in_session[-1]
         
+
         if is_correct:
            
             if self.current_word not in used_words_in_session:
                 used_words_in_session.append(self.current_word)
 
+            self.temporary_word=2   # для того чтобы слово которое должно быть в used_words_in_session  не удалялось 
+
             self.train_status_lbl.configure(text="Correct! Excellent job! ✨", text_color="#2ecc71")
             
             self.after(1500, self.show_next_word)
+            
+
         else:
+            if self.current_word not in used_words_in_session:
+                used_words_in_session.append(self.current_word)
+            
+
+            self.temporary_word=1   # для удаления временого слова
+
             self.train_status_lbl.configure(
                 text=f"Wrong answer! Try again ❌\n(Hint: {self.correct_translation})", 
                 text_color="#e74c3c"
@@ -676,7 +690,7 @@ class WordApp(ctk.CTk):
 
     def open_manage_dictionary_screen(self):
 
-
+        
 
         self.clear_center()
 

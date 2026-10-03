@@ -506,7 +506,7 @@ def pick_word(current_cat):
         cursor.execute(
             "SELECT id,word, translation,weight FROM words WHERE category_id = ? ",
         (category_id,))
-                    
+                
         
        
                     
@@ -518,7 +518,6 @@ def pick_word(current_cat):
     chosen = random.choices(words, weights=weights, k=1)[0]
 
     conn.close()
-    print(chosen[0], chosen[1], chosen[2], chosen[3], category_id)
     return chosen[0], chosen[1], chosen[2], chosen[3], category_id
 
     
